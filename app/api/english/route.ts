@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 
 export const revalidate = 3600; 
-const GEMINI_API_KEY = "AIzaSyBjIwB1a4IbFGWnY-foc6TebA3Wk-FWxgs";
+
+// 環境変数から読み出す設定に変更
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 export async function GET() {
   const SOURCES = [{ name: "REUTERS", url: "https://www.reutersagency.com/feed/?best-topics=business&post_type=best" }];
@@ -23,7 +25,7 @@ export async function GET() {
             text: `あなたは外資系企業のシニアパートナー専属コーチです。最新ニュースから、グローバル会議で「知的で決断力がある」と思われるイディオムを1つ厳選してください。
 
 【出力ルール：厳守】
-・「承知いたしました」「今日のイディオムは」などの挨拶・前置きは一切禁止。
+・挨拶・前置きは一切禁止。
 ・マークダウン（#や*）は使用禁止。
 ・以下の構成で、いきなり本題から開始してください。
 
@@ -48,8 +50,8 @@ ${titles}`
     const data = await geminiRes.json();
     const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
     
-    // 1行目からイディオムを抽出
-    const firstLine = aiText.split('\n')[1] || "";
+    const lines = aiText.split('\n');
+    const firstLine = lines.find(l => l.includes('💡')) || "";
     const idiomName = firstLine.split('：')[0].replace('💡 【Core Idiom】', '').trim();
 
     return NextResponse.json({ 
