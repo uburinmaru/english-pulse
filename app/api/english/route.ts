@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 export const revalidate = 3600; 
 
 export async function GET() {
-  // Vercelの設定画面で登録した Key 名と一致させる
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
   if (!GEMINI_API_KEY) {
@@ -19,8 +18,8 @@ export async function GET() {
     
     const titles = items.map(item => {
       const match = item.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/);
-      return match ? match[1].trim() : "";
-    }).join('\n');
+      return (match && match[1]) ? match[1].trim() : "";
+    }).filter(t => t !== "").join('\n');
 
     const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
@@ -59,9 +58,8 @@ ${titles}`
       return NextResponse.json({ fullContent: `API Error: ${data.error.message}` });
     }
 
-    const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const aiText = (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) || "";
     
-    // イディオム名を抽出するロジックの改善
     const lines = aiText.split('\n');
     const idiomLine = lines.find(l => l.includes('💡')) || "";
     const idiomName = idiomLine.split('】')[1]?.split('(')[0]?.trim() || "Daily Idiom";
@@ -71,7 +69,8 @@ ${titles}`
       fullContent: aiText.trim(),
       date: new Date().toLocaleDateString('ja-JP')
     });
-  } catch (err) {
+  } catch {
+    // (err) を削除することで、未使用変数エラーを回避
     return NextResponse.json({ fullContent: "Failed to fetch or analyze news." });
   }
 }
