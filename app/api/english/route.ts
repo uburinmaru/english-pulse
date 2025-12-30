@@ -2,16 +2,22 @@ import { NextResponse } from 'next/server';
 
 export const revalidate = 3600; 
 
-// 環境変数から読み出す設定に変更
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-
 export async function GET() {
+  // Vercelの設定画面で登録した Key 名と一致させる
+  const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
+  if (!GEMINI_API_KEY) {
+    return NextResponse.json({ fullContent: "API Key is missing in Vercel settings." });
+  }
+
   const SOURCES = [{ name: "REUTERS", url: "https://www.reutersagency.com/feed/?best-topics=business&post_type=best" }];
 
   try {
     const res = await fetch(SOURCES[0].url, { next: { revalidate: 3600 } });
     const xml = await res.text();
-    const titles = xml.split('<item>').slice(1, 5).map(item => {
+    const items = xml.split('<item>').slice(1, 5);
+    
+    const titles = items.map(item => {
       const match = item.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/);
       return match ? match[1].trim() : "";
     }).join('\n');
@@ -33,7 +39,7 @@ export async function GET() {
 (イディオム名：日本語訳)
 
 📖 【Strategic Context】
-(外資系会議での心理的効果や使い所を150字程度で濃密に)
+(外資系会議での心理的効果や使い所を150字程度で詳細に)
 
 🎙️ 【Killer Phrase】
 (シチュエーション説明)
@@ -48,18 +54,24 @@ ${titles}`
     });
 
     const data = await geminiRes.json();
+    
+    if (data.error) {
+      return NextResponse.json({ fullContent: `API Error: ${data.error.message}` });
+    }
+
     const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
     
+    // イディオム名を抽出するロジックの改善
     const lines = aiText.split('\n');
-    const firstLine = lines.find(l => l.includes('💡')) || "";
-    const idiomName = firstLine.split('：')[0].replace('💡 【Core Idiom】', '').trim();
+    const idiomLine = lines.find(l => l.includes('💡')) || "";
+    const idiomName = idiomLine.split('】')[1]?.split('(')[0]?.trim() || "Daily Idiom";
 
     return NextResponse.json({ 
-      idiom: idiomName || "Analysis Complete",
+      idiom: idiomName,
       fullContent: aiText.trim(),
       date: new Date().toLocaleDateString('ja-JP')
     });
-  } catch {
-    return NextResponse.json({ fullContent: "System initializing..." });
+  } catch (err) {
+    return NextResponse.json({ fullContent: "Failed to fetch or analyze news." });
   }
 }
